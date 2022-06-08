@@ -1,5 +1,5 @@
-name: 'Reviewer lottery'
-description: 'Automatically assign reviewers to Pull Requests'
+name: 'Reviewer lottery - forked cmaguranis'
+description: 'Automatically assign reviewers to Pull Requests - forked testing'
 author: 'Unai Esteibar'
 branding:
   icon: 'eye'
