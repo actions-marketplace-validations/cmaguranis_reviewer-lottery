@@ -1,0 +1,40 @@
+groups:
+  - name: reviewers and internal reviewers
+    reviewers: 2
+    internal_reviewers: 1
+    usernames:
+      - uesteibar
+      - tebs
+      - rudeayelo
+      - marciobarrios
+
+  - name: reviewers
+    reviewers: 1
+    usernames:
+      - some_user
+      - someoneelse
+
+  - name: internal reviewers
+    reviewers: 3
+    usernames:
+      - some_user
+      - someoneelse
+      - cmaguranis
+      - uesteibar
+
+  - name: usernames and teams
+    reviewers: 2
+    usernames:
+      - some_user
+      - someoneelse
+      - cmaguranis
+      - uesteibar
+    teams:
+      - name: super_cool_team
+        org: the_best_org_ever
+
+  - name: teams
+    reviewers: 2
+    teams:
+      - name: super_cool_team
+        org: the_best_org_ever

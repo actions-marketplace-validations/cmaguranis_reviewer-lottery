@@ -1,0 +1,5 @@
+groups:
+  - name: teams
+    reviewers: 2
+    teams:
+      - name: super_cool_team

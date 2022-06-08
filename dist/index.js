@@ -7931,17 +7931,31 @@ var __importDefault = (this && this.__importDefault) || function (mod) {
     return (mod && mod.__esModule) ? mod : { "default": mod };
 };
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.getConfig = void 0;
+exports.getConfig = exports.missingTeamOrgOrNameMessage = exports.missingUsernamesOrTeamsMessage = exports.missingReviewersOrInternalReviewers = void 0;
 const core = __importStar(__webpack_require__(470));
 const js_yaml_1 = __importDefault(__webpack_require__(414));
 const fs_1 = __importDefault(__webpack_require__(747));
+exports.missingReviewersOrInternalReviewers = 'One of `reviewers` or `internal_reviewers` should be set';
+exports.missingUsernamesOrTeamsMessage = 'One of `usernames` or `teams` should be set';
+exports.missingTeamOrgOrNameMessage = `Team requires both org and name values to be set`;
 exports.getConfig = () => {
+    var _a, _b, _c;
     const configPath = core.getInput('config', { required: true });
     try {
         const config = js_yaml_1.default.safeLoad(fs_1.default.readFileSync(configPath, 'utf8'));
         for (const group of config.groups) {
             if (!group.reviewers && !group.internal_reviewers) {
-                throw new Error('One of `reviewers` or `internal_reviewers` should be set');
+                throw new Error(exports.missingReviewersOrInternalReviewers);
+            }
+            if (!((_a = group.usernames) === null || _a === void 0 ? void 0 : _a.length) && !((_b = group.teams) === null || _b === void 0 ? void 0 : _b.length)) {
+                throw new Error(exports.missingUsernamesOrTeamsMessage);
+            }
+            if ((_c = group === null || group === void 0 ? void 0 : group.teams) === null || _c === void 0 ? void 0 : _c.length) {
+                for (const team of group.teams) {
+                    if (!team.org || !team.name) {
+                        throw new Error(exports.missingTeamOrgOrNameMessage);
+                    }
+                }
             }
         }
         return config;
@@ -8397,12 +8411,17 @@ class Lottery {
             let selected = [];
             const author = yield this.getPRAuthor();
             try {
-                for (const { reviewers, internal_reviewers: internalReviewers, usernames } of this.config.groups) {
-                    const reviewersToRequest = usernames.includes(author) && internalReviewers
+                for (const { reviewers, internal_reviewers: internalReviewers, usernames, teams } of this.config.groups) {
+                    const allUsernames = [...(usernames !== null && usernames !== void 0 ? usernames : [])];
+                    if (teams === null || teams === void 0 ? void 0 : teams.length) {
+                        const usernamesFromTeams = yield this.getUsernamesFromTeams(teams);
+                        allUsernames.concat(usernamesFromTeams);
+                    }
+                    const reviewersToRequest = allUsernames.includes(author) && internalReviewers
                         ? internalReviewers
                         : reviewers;
                     if (reviewersToRequest) {
-                        selected = selected.concat(this.pickRandom(usernames, reviewersToRequest, author));
+                        selected = selected.concat(this.pickRandom(allUsernames, reviewersToRequest, author));
                     }
                 }
             }
@@ -8442,10 +8461,8 @@ class Lottery {
         return { owner, repo };
     }
     getPRNumber() {
-        if (!this.pr) {
-            throw new Error('PR not set');
-        }
-        return Number(this.pr.number);
+        var _a;
+        return Number((_a = this.pr) === null || _a === void 0 ? void 0 : _a.number);
     }
     getPR() {
         return __awaiter(this, void 0, void 0, function* () {
@@ -8463,6 +8480,30 @@ class Lottery {
                 core.error(error);
                 core.setFailed(error);
                 return undefined;
+            }
+        });
+    }
+    getUsernamesFromTeams(teams) {
+        return __awaiter(this, void 0, void 0, function* () {
+            try {
+                const usersFromTeams = yield Promise.all(teams.map((team) => __awaiter(this, void 0, void 0, function* () {
+                    return this.octokit.teams.listMembersInOrg({
+                        org: team.org,
+                        // Can't control the input from Octokit
+                        // eslint-disable-next-line @typescript-eslint/camelcase
+                        team_slug: team.name
+                    });
+                })));
+                const usernamesFromTeams = usersFromTeams.reduce((acc, teamUsers) => {
+                    acc.concat(teamUsers.data.map(user => user.login));
+                    return acc;
+                }, []);
+                return usernamesFromTeams;
+            }
+            catch (error) {
+                core.error(error);
+                core.setFailed(error);
+                return [];
             }
         });
     }
