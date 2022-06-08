@@ -1,6 +1,6 @@
 import * as core from '@actions/core'
 import {Octokit} from '@octokit/rest'
-import {Config} from './config'
+import {Config, Team} from './config'
 
 export interface Pull {
   user: {
@@ -81,16 +81,24 @@ class Lottery {
       for (const {
         reviewers,
         internal_reviewers: internalReviewers,
-        usernames
+        usernames,
+        teams
       } of this.config.groups) {
+        const allUsernames = [...(usernames ?? [])]
+
+        if (teams?.length) {
+          const usernamesFromTeams = await this.getUsernamesFromTeams(teams)
+          allUsernames.concat(usernamesFromTeams)
+        }
+
         const reviewersToRequest =
-          usernames.includes(author) && internalReviewers
+          allUsernames.includes(author) && internalReviewers
             ? internalReviewers
             : reviewers
 
         if (reviewersToRequest) {
           selected = selected.concat(
-            this.pickRandom(usernames, reviewersToRequest, author)
+            this.pickRandom(allUsernames, reviewersToRequest, author)
           )
         }
       }
@@ -160,6 +168,32 @@ class Lottery {
       core.setFailed(error)
 
       return undefined
+    }
+  }
+
+  async getUsernamesFromTeams(teams: Team[]): Promise<string[]> {
+    try {
+      const usersFromTeams = await Promise.all(
+        teams.map(async team => {
+          return this.octokit.teams.listMembersInOrg({
+            org: team.org,
+            // Can't control the input from Octokit
+            // eslint-disable-next-line @typescript-eslint/camelcase
+            team_slug: team.name
+          })
+        })
+      )
+      const usernamesFromTeams = usersFromTeams.reduce((acc, teamUsers) => {
+        acc.concat(teamUsers.data.map(user => user.login))
+        return acc
+      }, [] as string[])
+
+      return usernamesFromTeams
+    } catch (error) {
+      core.error(error)
+      core.setFailed(error)
+
+      return []
     }
   }
 }

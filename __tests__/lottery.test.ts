@@ -6,6 +6,8 @@ const octokit = new Octokit()
 const prNumber = 123
 const ref = 'refs/pull/branch-name'
 const basePull = {number: prNumber, head: {ref}}
+const org = 'test-org'
+const team = 'test-team'
 
 const mockGetPull = (pull: Pull) =>
   nock('https://api.github.com')
@@ -51,6 +53,61 @@ test('selects reviewers from a pool of users, ignoring author', async () => {
     ref
   })
 
+  getPullMock.done()
+  postReviewersMock.done()
+
+  nock.cleanAll()
+})
+
+test('selects users from a team', async () => {
+  const pull = {
+    ...basePull,
+    user: {login: 'author'},
+    draft: false
+  }
+  const teamMembers = [
+    {login: 'member A'},
+    {login: 'member B'},
+    {login: 'author'}
+  ]
+  const candidates = teamMembers.map(member => member.login)
+
+  const getPullMock = mockGetPull(pull)
+
+  const postReviewersMock = nock('https://api.github.com')
+    .post(
+      `/repos/uesteibar/repository/pulls/${prNumber}/requested_reviewers`,
+      (body): boolean => {
+        body.reviewers.forEach((reviewer: string) => {
+          expect(candidates).toContain(reviewer)
+          expect(reviewer).not.toEqual('author')
+        })
+        return true
+      }
+    )
+    .reply(200, pull)
+
+  const getTeamMembersMock = nock('https://api.github.com')
+    .get(`/orgs/${org}/teams/${team}/members`)
+    .reply(200, teamMembers)
+
+  const config = {
+    groups: [
+      {
+        name: 'Test',
+        reviewers: 2,
+        usernames: candidates,
+        teams: [{org, name: team}]
+      }
+    ]
+  }
+
+  await runLottery(octokit, config, {
+    repository: 'uesteibar/repository',
+    ref
+  })
+
+  getTeamMembersMock.done()
   getPullMock.done()
   postReviewersMock.done()
 
